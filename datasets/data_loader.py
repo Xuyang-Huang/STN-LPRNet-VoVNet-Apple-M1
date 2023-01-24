@@ -17,13 +17,18 @@ from .label_basic import *
 from .aug_data import ImageAugmentation
 class LPRDataLoader(Dataset):
     def __init__(self, img_dir, imgSize, aug=True):
-
+        self.all_type = set()
+        self.select_type = "all"
         self.aug = aug
         augment = ImageAugmentation()
         self.aug_func = augment.augment
         self.img_paths = glob.glob(os.path.join(img_dir, "*"))
         random.shuffle(self.img_paths)
         self.img_size = imgSize
+
+        for item in self.img_paths:
+            _, file_name = os.path.split(item)
+            self.all_type.add(file_name.split("_")[1])
 
     def __len__(self):
         return len(self.img_paths)

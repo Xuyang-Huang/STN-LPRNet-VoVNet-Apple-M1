@@ -23,6 +23,7 @@ import argparse
 import torch
 import time
 import os
+import math
 
 device = None
 
@@ -64,9 +65,9 @@ def get_parser():
     parser.add_argument('--test_img_dirs', default="/Users/xuyanghuang/Downloads/CCPD数据集/cropped_datasets/val",
                         help='the test images path')
     parser.add_argument('--dropout_rate', default=0.5, help='dropout rate.')
-    parser.add_argument('--learning_rate', default=0.001, help='base value of learning rate.')
+    parser.add_argument('--learning_rate', default=0.003, help='base value of learning rate.')
     parser.add_argument('--lpr_max_len', default=19, help='license plate number max length.')
-    parser.add_argument('--train_batch_size', default=32, help='training batch size.')
+    parser.add_argument('--train_batch_size', default=64, help='training batch size.')
     parser.add_argument('--test_batch_size', default=32, help='testing batch size.')
     parser.add_argument('--phase_train', default="train", type=bool, help='train or test phase flag.')
     parser.add_argument('--num_workers', default=0, type=int, help='Number of workers used in dataloading')
@@ -75,14 +76,15 @@ def get_parser():
     parser.add_argument('--save_interval', default=2000, type=int, help='interval for save model state dict')
     parser.add_argument('--test_interval', default=1000, type=int, help='interval for evaluate')
     parser.add_argument('--momentum', default=0.9, type=float, help='momentum')
-    parser.add_argument('--weight_decay', default=2e-5, type=float, help='Weight decay for SGD')
-    parser.add_argument('--lr_schedule', default=[3, 50, 100, 200, 301], help='schedule for learning rate.')
+    parser.add_argument('--weight_decay', default=1e-5, type=float, help='Weight decay for SGD')
+    parser.add_argument('--lr_schedule', default=[3, 50, 301], help='schedule for learning rate.')
     parser.add_argument('--save_folder', default='./weights/', help='Location to save checkpoint models')
-    # parser.add_argument('--pretrained_model', default='./weights/LPRNet_ACELossJS_BEST.pth', help='pretrained base model')
+    # parser.add_argument('--pretrained_model', default='./weights/LPRNet_ACELossJS_iteration_100000.pth', help='pretrained base model')
     parser.add_argument('--pretrained_model', default='', help='pretrained base model')
     parser.add_argument('--stn_epoch', default=10, help='pretrained base model')
     parser.add_argument('--stn_acc', default=0.6, help='pretrained base model')
-    parser.add_argument('--ace_loss_weight', default=1, help='pretrained base model')
+    parser.add_argument('--stn_weight_decay', default=2e-5)
+    parser.add_argument('--ace_loss_weight', default=0.0, help='pretrained base model')
 
     args = parser.parse_args()
 
@@ -145,7 +147,16 @@ def train():
         lprnet.container.apply(weights_init)
         print("initial net weights successful!")
 
-    optimizer = optim.AdamW(lprnet.parameters(), lr=args.learning_rate)
+    optimizer_params = [
+        {'params': lprnet.stn.parameters(), 'weight_decay': args.stn_weight_decay},
+        {'params': lprnet.backbone.parameters(), 'weight_decay': args.weight_decay},
+        {'params': lprnet.container.parameters(), 'weight_decay': args.weight_decay}
+    ]
+    optimizer = optim.AdamW(optimizer_params, lr=args.learning_rate, betas=(args.momentum, 0.99))
+    # lr 自动调整器
+    lf = lambda e: (((1 + math.cos(e * math.pi / args.max_epoch)) / 2) ** 1.0) * 0.8 + 0.2  # cosine
+    scheduler = torch.optim.lr_scheduler.LambdaLR(optimizer, lr_lambda=lf)
+
     train_img_dirs = os.path.expanduser(args.train_img_dirs)
     test_img_dirs = os.path.expanduser(args.test_img_dirs)
     train_dataset = LPRDataLoader(train_img_dirs, args.img_size, aug=True)
@@ -176,6 +187,8 @@ def train():
                            collate_fn=collate_fn))
             loss_val = 0
             epoch += 1
+            # Scheduler
+            scheduler.step()
 
         if iteration != 0 and iteration % args.save_interval == 0:
             torch.save(lprnet.state_dict(), args.save_folder + TRAIN_NAME + '_iteration_' + repr(iteration) + '.pth')
@@ -195,7 +208,7 @@ def train():
         # get ctc parameters
         input_lengths, target_lengths = sparse_tuple_for_ctc(T_length, lengths)
         # update lr
-        lr = adjust_learning_rate(optimizer, epoch, args.learning_rate, args.lr_schedule)
+        # lr = adjust_learning_rate(optimizer, epoch, args.learning_rate, args.lr_schedule)
 
         if args.mps:
             images = Variable(images, requires_grad=False).to(device)
@@ -318,6 +331,6 @@ def seed_everything(seed_value):
 
 if __name__ == "__main__":
     global TRAIN_NAME
-    TRAIN_NAME = "LPRNet_ACELossJS"
+    TRAIN_NAME = "LPRNet"
     seed_everything(1)
     train()

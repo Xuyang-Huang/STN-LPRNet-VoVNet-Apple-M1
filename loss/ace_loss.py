@@ -29,11 +29,18 @@ class ACELossJS(nn.Module):
         for i in range(len(target_lengths)):
             n_k = torch.bincount(predicts[i], minlength=self.class_num)
             y_k = torch.bincount(y[y_start: y_start+target_lengths[i]], minlength=self.class_num)
+            n_k[self.blank] = 0
+            y_k[self.blank] = 0
             # blank_num = lpr_length - torch.sum(y_k)
             # y_k[self.blank] = blank_num
             non_zero_mask = y_k != 0
-            n_p = torch.clip(n_k[non_zero_mask]/(torch.sum(n_k[non_zero_mask]) - n_k[self.blank]), 1e-5)
-            y_p = y_k[non_zero_mask]/(torch.sum(y_k)-y_k[self.blank])
+            y_k = y_k[non_zero_mask]
+            n_k = n_k[non_zero_mask]
+            if torch.sum(n_k) == 0:
+                n_p = 1e-5*torch.ones_like(y_k)
+            else:
+                n_p = torch.clip(n_k/(torch.sum(n_k)), 1e-5)
+            y_p = y_k/(torch.sum(y_k))
             loss.append(self.KL(n_p, (n_p + y_p)/2) + self.KL(y_p, (n_p + y_p)/2))
 
             y_start += target_lengths[i]
@@ -59,9 +66,16 @@ class ACELoss(nn.Module):
         for i in range(len(target_lengths)):
             n_k = torch.bincount(predicts[i], minlength=self.class_num)
             y_k = torch.bincount(y[y_start: y_start+target_lengths[i]], minlength=self.class_num)
+
             non_zero_mask = y_k != 0
-            n_p = torch.clip(n_k[non_zero_mask]/(torch.sum(n_k[non_zero_mask]) - n_k[self.blank]), 1e-5)
-            y_p = y_k[non_zero_mask]/(torch.sum(y_k)-y_k[self.blank])
+            y_k = y_k[non_zero_mask]
+            n_k = n_k[non_zero_mask]
+            if torch.sum(n_k) == 0:
+                n_p = 1e-5*torch.ones_like(y_k)
+            else:
+                n_p = torch.clip(n_k/(torch.sum(n_k)), 1e-5)
+
+            y_p = y_k / (torch.sum(y_k))
             loss.append(torch.sum(-n_p * torch.log(y_p)))
 
             y_start += target_lengths[i]
