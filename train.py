@@ -9,7 +9,7 @@
 import random
 
 from model.lprnet import build_lprnet
-
+from loss.ace_loss import ACELoss, ACELossJS
 from datasets.data_loader import LPRDataLoader
 from datasets.label_basic import *
 # import torch.backends.cudnn as cudnn
@@ -25,6 +25,7 @@ import time
 import os
 
 device = None
+
 
 def sparse_tuple_for_ctc(T_length, lengths):
     input_lengths = []
@@ -58,8 +59,10 @@ def get_parser():
     parser = argparse.ArgumentParser(description='parameters to train net')
     parser.add_argument('--max_epoch', default=300, help='epoch to train the network')
     parser.add_argument('--img_size', default=[96, 24], help='the image size')
-    parser.add_argument('--train_img_dirs', default="/Users/xuyanghuang/Downloads/CCPD数据集/cropped_datasets/train", help='the train images path')
-    parser.add_argument('--test_img_dirs', default="/Users/xuyanghuang/Downloads/CCPD数据集/cropped_datasets/val", help='the test images path')
+    parser.add_argument('--train_img_dirs', default="/Users/xuyanghuang/Downloads/CCPD数据集/cropped_datasets/train",
+                        help='the train images path')
+    parser.add_argument('--test_img_dirs', default="/Users/xuyanghuang/Downloads/CCPD数据集/cropped_datasets/val",
+                        help='the test images path')
     parser.add_argument('--dropout_rate', default=0.5, help='dropout rate.')
     parser.add_argument('--learning_rate', default=0.001, help='base value of learning rate.')
     parser.add_argument('--lpr_max_len', default=19, help='license plate number max length.')
@@ -73,12 +76,13 @@ def get_parser():
     parser.add_argument('--test_interval', default=1000, type=int, help='interval for evaluate')
     parser.add_argument('--momentum', default=0.9, type=float, help='momentum')
     parser.add_argument('--weight_decay', default=2e-5, type=float, help='Weight decay for SGD')
-    parser.add_argument('--lr_schedule', default=[5, 50, 100, 200, 301], help='schedule for learning rate.')
+    parser.add_argument('--lr_schedule', default=[3, 50, 100, 200, 301], help='schedule for learning rate.')
     parser.add_argument('--save_folder', default='./weights/', help='Location to save checkpoint models')
-    # parser.add_argument('--pretrained_model', default='./weights/Final_LPRNet_model.pth', help='pretrained base model')
+    # parser.add_argument('--pretrained_model', default='./weights/LPRNet_ACELossJS_BEST.pth', help='pretrained base model')
     parser.add_argument('--pretrained_model', default='', help='pretrained base model')
     parser.add_argument('--stn_epoch', default=10, help='pretrained base model')
     parser.add_argument('--stn_acc', default=0.6, help='pretrained base model')
+    parser.add_argument('--ace_loss_weight', default=1, help='pretrained base model')
 
     args = parser.parse_args()
 
@@ -151,6 +155,7 @@ def train():
     max_iter = args.max_epoch * epoch_size
 
     ctc_loss = nn.CTCLoss(blank=len(ALL_CHARS) - 1, reduction='mean')  # reduction: 'none' | 'mean' | 'sum'
+    ace_loss = ACELossJS(len(ALL_CHARS) - 1, len(ALL_CHARS))
 
     if args.resume_epoch > 0:
         start_iter = args.resume_epoch * epoch_size
@@ -190,7 +195,7 @@ def train():
         # get ctc parameters
         input_lengths, target_lengths = sparse_tuple_for_ctc(T_length, lengths)
         # update lr
-        # lr = adjust_learning_rate(optimizer, epoch, args.learning_rate, args.lr_schedule)
+        lr = adjust_learning_rate(optimizer, epoch, args.learning_rate, args.lr_schedule)
 
         if args.mps:
             images = Variable(images, requires_grad=False).to(device)
@@ -212,8 +217,13 @@ def train():
         if args.mps:
             log_probs = log_probs.cpu()
             labels = labels.cpu()
+            logits = logits.cpu()
 
-        loss = ctc_loss(log_probs, labels, input_lengths=input_lengths, target_lengths=target_lengths)
+        c_loss = ctc_loss(log_probs, labels, input_lengths=input_lengths, target_lengths=target_lengths)
+        a_loss = ace_loss(logits, labels, target_lengths)
+
+        loss = c_loss + args.ace_loss_weight * a_loss
+
         if loss.item() == np.inf:
             continue
         loss.to(device)
@@ -223,8 +233,10 @@ def train():
         end_time = time.time()
         if iteration % 100 == 0:
             print('Epoch:' + repr(epoch) + ' || epochiter: ' + repr(iteration % epoch_size) + '/' + repr(epoch_size)
-                  + '|| Totel iter ' + repr(iteration) + ' || Loss: %.4f||' % (loss.item()) +
-                  'Batch time: %.4f sec. ||' % (end_time - start_time) + 'LR: %.8f' % (optimizer.state_dict()['param_groups'][0]['lr']))
+                  + '|| Totel iter ' + repr(iteration) + ' || Loss: %.4f||' % (loss.item()) + ' || CTC Loss: %.4f||' % (
+                      c_loss.item()) + ' || ACE Loss: %.4f||' % (a_loss.item()) +
+                  'Batch time: %.4f sec. ||' % (end_time - start_time) + 'LR: %.8f' % (
+                  optimizer.state_dict()['param_groups'][0]['lr']))
     # final test
     print("Final test Accuracy:")
     Greedy_Decode_Eval(lprnet, test_dataset, args)
@@ -306,6 +318,6 @@ def seed_everything(seed_value):
 
 if __name__ == "__main__":
     global TRAIN_NAME
-    TRAIN_NAME = "LPRNet"
+    TRAIN_NAME = "LPRNet_ACELossJS"
     seed_everything(1)
     train()
