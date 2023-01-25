@@ -99,6 +99,7 @@ def build_lprnet(phase="train", class_num=66, dropout_rate=0.5):
     if phase == "train":
         return Net.train()
     else:
+        Net.stn_switch = True
         return Net.eval()
 
 

@@ -41,10 +41,10 @@ def get_label(label_str):
 
 if __name__ == "__main__":
     random.seed(1)
-    ccpd_folder = "/ccpd2019/"
-    save_folder = "/cropped_datasets/"
+    ccpd_folder = "/Users/xuyanghuang/Downloads/CCPD数据集/ccpd2019/"
+    save_folder = "/Users/xuyanghuang/Downloads/CCPD数据集/cropped_datasets/"
     skip_folder_name = ["ccpd_blur", "ccpd_np"]
-    max_num_per_type = 5000
+    max_num_per_type = 50e3
     all_type_folders = glob.glob(os.path.join(ccpd_folder, "ccpd*"))
     for type_folder in all_type_folders:
         if any([skip_folder in type_folder for skip_folder in skip_folder_name]):
@@ -55,7 +55,7 @@ if __name__ == "__main__":
             if i > max_num_per_type:
                 print(f"Finish {type_folder}")
                 break
-            if i % 5 == 0:
+            if i % 6 == 0:
                 save_type = "val"
             else:
                 save_type = "train"
