@@ -42,8 +42,8 @@ class STN(nn.Module):
         theta = self.fc_loc(x)
         theta = theta.view(-1, 2, 3)
 
-        grid = F.affine_grid(theta.cpu(), inputs.size())
-        outputs = F.grid_sample(inputs.cpu(), grid.cpu())
+        grid = F.affine_grid(theta.cpu(), inputs.size(), align_corners=True)
+        outputs = F.grid_sample(inputs.cpu(), grid.cpu(), align_corners=True)
 
         return outputs.to(inputs.device)
 
