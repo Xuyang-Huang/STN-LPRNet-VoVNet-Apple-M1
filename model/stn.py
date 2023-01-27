@@ -35,25 +35,21 @@ class STN(nn.Module):
         self.fc_loc[2].weight.data.zero_()
         self.fc_loc[2].bias.data.copy_(torch.tensor([1, 0, 0, 0, 1, 0], dtype=torch.float))
 
-    def forward(self, inputs):
-        x = self.localization(inputs)
-
-        # x = torch.cat([x1, x2], 1)
+    def get_theta(self, x):
+        x = self.localization(x)
         x = torch.flatten(x, 1)
-
         theta = self.fc_loc(x)
         theta = theta.view(-1, 2, 3)
+        return theta
 
-        grid = F.affine_grid(theta.cpu(), inputs.size(), align_corners=True)
-        outputs = F.grid_sample(inputs.cpu(), grid.cpu(), align_corners=True)
+    def forward(self, inputs):
+        theta = self.get_theta(inputs)
+        outputs = sampling(theta, inputs)
 
         return outputs.to(inputs.device)
 
 
-def build_stn(phase="train"):
-    Net = STN()
-
-    if phase == "train":
-        return Net.train()
-    else:
-        return Net.eval()
+def sampling(theta, inputs):
+    grid = F.affine_grid(theta.cpu(), inputs.size(), align_corners=True)
+    outputs = F.grid_sample(inputs.cpu(), grid.cpu(), align_corners=True)
+    return outputs

@@ -104,7 +104,7 @@ def train():
     ]
     optimizer = optim.AdamW(optimizer_params, lr=args.learning_rate, betas=(args.momentum, 0.99))
     # lr
-    scheduler = torch.optim.lr_scheduler.ReduceLROnPlateau(optimizer, 'max')
+    scheduler = torch.optim.lr_scheduler.ReduceLROnPlateau(optimizer, 'max', factor=0.5, min_lr=1e-5)
 
     train_img_dirs = os.path.expanduser(args.train_img_dirs)
     test_img_dirs = os.path.expanduser(args.test_img_dirs)
@@ -148,7 +148,7 @@ def train():
                 best_acc = acc
                 torch.save(lprnet.state_dict(), args.save_folder + TRAIN_NAME + '_BEST.pth')
             lprnet = lprnet.train()  # should be switch to train mode
-            # scheduler.step(acc)
+            scheduler.step(acc)
 
         start_time = time.time()
         # load train data
