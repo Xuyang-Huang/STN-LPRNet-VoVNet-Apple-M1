@@ -118,4 +118,4 @@ def test(img_dir, img_size, weights_fp):
 
 
 if __name__ == "__main__":
-    test("/cropped_datasets/val", (96, 24), "./weights/STN_LPRNet_BEST.pth")
+    test("/Users/xuyanghuang/Downloads/CCPD数据集/cropped_datasets/val", (96, 24), "./weights/STN_LPRNet_BEST.pth")

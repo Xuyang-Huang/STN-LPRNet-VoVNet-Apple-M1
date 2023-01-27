@@ -28,6 +28,7 @@ import math
 
 device = None
 
+
 def sparse_tuple_for_ctc(T_length, lengths):
     input_lengths = []
     target_lengths = []
@@ -38,8 +39,24 @@ def sparse_tuple_for_ctc(T_length, lengths):
 
     return tuple(input_lengths), tuple(target_lengths)
 
+
+def alternate_training(iters, net, interval):
+    if (iters // interval) % 2 == 0:
+        if not net.freeze_lpr_flag or net.freeze_stn_flag:
+            net.unfreeze_stn()
+            net.freeze_lpr()
+            print("Freeze lpr")
+        return
+
+    if not net.freeze_stn_flag or net.freeze_lpr_flag:
+        net.freeze_stn()
+        net.unfreeze_lpr()
+        print("Freeze stn")
+
+
 def train():
     args = get_parser()
+    seed_everything(1)
 
     T_length = args.lpr_max_len  # args.lpr_max_len
     epoch = 0 + args.resume_epoch
@@ -81,7 +98,7 @@ def train():
         print("initial net weights successful!")
 
     optimizer_params = [
-        {'params': lprnet.stn.parameters(), 'weight_decay': args.stn_weight_decay, 'lr': 1e-4},
+        {'params': lprnet.stn.parameters(), 'weight_decay': args.stn_weight_decay, 'lr': 1e-3},
         {'params': lprnet.backbone.parameters(), 'weight_decay': args.weight_decay},
         {'params': lprnet.container.parameters(), 'weight_decay': args.weight_decay}
     ]
@@ -106,10 +123,13 @@ def train():
     lprnet = lprnet.to(device)
 
     best_acc = 0
+    start_stn_iter = 0
     for iteration in range(start_iter, max_iter):
-        if (epoch >= args.stn_epoch or best_acc > args.stn_acc) and lprnet.stn_switch == False:
+        if (epoch >= args.stn_epoch or best_acc > args.stn_acc) and not lprnet.stn_switch:
             lprnet.stn_switch = True
-            lprnet.stn.init_weights()
+            for _stn in lprnet.stn.children():
+                _stn.init_weights()
+            start_stn_iter = iteration
             print("start STN")
         if iteration % epoch_size == 0:
             # create batch iterator
@@ -128,7 +148,7 @@ def train():
                 best_acc = acc
                 torch.save(lprnet.state_dict(), args.save_folder + TRAIN_NAME + '_BEST.pth')
             lprnet = lprnet.train()  # should be switch to train mode
-            scheduler.step(acc)
+            # scheduler.step(acc)
 
         start_time = time.time()
         # load train data
@@ -178,6 +198,10 @@ def train():
                   ' || CTC Loss: %.4f||' % (c_loss.item()) + 'Batch time: %.4f sec. ||' % (end_time - start_time) +
                   'LR1: %.8f' % (optimizer.state_dict()['param_groups'][0]['lr']) +
                   'LR2: %.8f' % (optimizer.state_dict()['param_groups'][1]['lr']))
+        if args.alternate_training and lprnet.stn_switch:
+            alternate_training(iteration - start_stn_iter, lprnet, args.alternate_training_interval)
+        if iteration - start_stn_iter < args.stn_warm_iter and lprnet.stn_switch:
+            optimizer.param_groups[0]['lr'] = warm_up(1e-3, iteration - start_stn_iter, args.stn_warm_iter, epoch_size)
     # final test
     print("Final test Accuracy:")
     Greedy_Decode_Eval(lprnet, test_dataset, args)
@@ -185,6 +209,11 @@ def train():
     # save final parameters
     torch.save(lprnet.state_dict(), args.save_folder + f'Final_{TRAIN_NAME}_model.pth')
 
+
+def warm_up(lr, step, iter_warm, epoch_size):
+    epoch = (step+1) / epoch_size
+    epoch_warm = iter_warm / epoch_size
+    return lr * min(epoch ** (-0.5), epoch * epoch_warm ** (-1.5))
 
 
 def seed_everything(seed_value):
@@ -196,6 +225,5 @@ def seed_everything(seed_value):
 
 if __name__ == "__main__":
     global TRAIN_NAME
-    TRAIN_NAME = "LPRNet_Large"
-    seed_everything(1)
+    TRAIN_NAME = "LPRNet_Alternate_Train"
     train()

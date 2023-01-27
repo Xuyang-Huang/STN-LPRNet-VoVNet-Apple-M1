@@ -40,9 +40,10 @@ def inference(net, img):
     return " ".join(res)
 
 if __name__ == "__main__":
-    lprnet = load_model("./weights/STN_LPRNet_BEST.pth")
-    raw_image = cv2.imread("./test_img/ccpd_tilt_1.jpg")
+    lprnet = load_model("./weights/LPRNet_Alternate_Train_BEST.pth")
+    raw_image = cv2.imread("./test_img/ccpd_rotate_1.jpg")
     image = cv2.resize(raw_image, (96, 24))
     image = np.transpose(image, (2, 0, 1))
-    print(inference(lprnet, image))
+    result = inference(lprnet, image)
+    print(result)
 
