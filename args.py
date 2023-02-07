@@ -12,9 +12,9 @@ def get_parser():
     parser = argparse.ArgumentParser(description='parameters to train net')
     parser.add_argument('--max_epoch', default=300, help='epoch to train the network')
     parser.add_argument('--img_size', default=[96, 24], help='the image size')
-    parser.add_argument('--train_img_dirs', default="/cropped_datasets/train",
+    parser.add_argument('--train_img_dirs', default="/Users/xuyanghuang/Downloads/CCPD数据集/cropped_datasets/train",
                         help='the train images path')
-    parser.add_argument('--test_img_dirs', default="/cropped_datasets/val",
+    parser.add_argument('--test_img_dirs', default="/Users/xuyanghuang/Downloads/CCPD数据集/cropped_datasets/val",
                         help='the test images path')
     parser.add_argument('--dropout_rate', default=0.5, help='dropout rate.')
     parser.add_argument('--learning_rate', default=0.003, help='base value of learning rate.')
@@ -34,8 +34,11 @@ def get_parser():
     # parser.add_argument('--pretrained_model', default='./weights/Final_LPRNet_model.pth', help='pretrained base model')
     parser.add_argument('--pretrained_model', default='', help='pretrained base model')
     parser.add_argument('--stn_epoch', default=10, help='pretrained base model')
-    parser.add_argument('--stn_acc', default=0.4, help='pretrained base model')
+    parser.add_argument('--stn_acc', default=0.7, help='pretrained base model')
     parser.add_argument('--stn_weight_decay', default=2e-5)
+    parser.add_argument('--alternate_training', default=False)
+    parser.add_argument('--alternate_training_interval', default=12000)
+    parser.add_argument('--stn_warm_iter', default=5000)
 
     args = parser.parse_args()
 

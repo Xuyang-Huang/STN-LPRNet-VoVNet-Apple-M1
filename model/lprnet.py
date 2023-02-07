@@ -43,10 +43,14 @@ class OSA(nn.Module):
 class LPRNet(nn.Module):
     def __init__(self, phase, class_num, dropout_rate):
         super(LPRNet, self).__init__()
+        self.freeze_stn_flag = False
+        self.freeze_lpr_flag = False
         self.phase = phase
         self.class_num = class_num
         self.stn_switch = False
-        self.stn = STN()
+        self.stn = nn.Sequential(STN(3, 16, 5, [6, 24]),
+                                 STN(64, 16, 3, [3, 12]),
+                                 STN(128, 32, 3, [3, 12]))
         self.backbone = nn.Sequential(
             # input: 24x96
             nn.Conv2d(in_channels=3, out_channels=64, kernel_size=3, stride=2, padding=1),  # 12x48
@@ -68,27 +72,48 @@ class LPRNet(nn.Module):
             nn.ReLU()
         )
 
+        # self.freeze_stn()
+
+    @staticmethod
+    def freeze(model):
+        for param in model.parameters():
+            param.requires_grad = False
+
+    @staticmethod
+    def unfreeze(model):
+        for param in model.parameters():
+            param.requires_grad = True
+
+    def freeze_stn(self):
+        self.freeze_stn_flag = True
+        self.freeze(self.stn)
+
+    def freeze_lpr(self):
+        self.freeze_lpr_flag = True
+        self.freeze(self.backbone)
+        self.freeze(self.container)
+
+    def unfreeze_stn(self):
+        self.freeze_stn_flag = False
+        self.unfreeze(self.stn)
+
+    def unfreeze_lpr(self):
+        self.freeze_lpr_flag = False
+        self.unfreeze(self.backbone)
+        self.unfreeze(self.container)
+
     def forward(self, x):
         if self.stn_switch:
-            x = self.stn(x)
+            x = self.stn[0](x)
+        for i, layer in enumerate(self.backbone.children()):
+            x = layer(x)
 
-        # keep_features = list()
-        # for i, layer in enumerate(self.backbone.children()):
-        #     x = layer(x)
-        #     if i in [3, 6, 9]:
-        #         keep_features.append(x)
-        #
-        # global_context = list()
-        # for i, f in enumerate(keep_features):
-        #     if i in [0, 1]:
-        #         f = nn.AvgPool2d(kernel_size=12, stride=(1, 2))(f)
-        #     f_pow = torch.pow(f, 2)
-        #     f_mean = torch.mean(f_pow)
-        #     f = torch.div(f, f_mean)
-        #     global_context.append(f)
-        # x = torch.cat(global_context, 1)
+            if i == 3 and self.stn_switch:
+                x = self.stn[1](x)
 
-        x = self.backbone(x)
+            if i == 6 and self.stn_switch:
+                x = self.stn[2](x)
+        # x = self.backbone(x)
         logits = self.container(x)
         return logits.reshape([-1, self.class_num, 19])
 
