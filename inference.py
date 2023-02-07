@@ -25,7 +25,8 @@ def visualize_stn(net, img):
     img = torch.Tensor(img[np.newaxis, :, :, :])
     net = net.eval()
     theta = net.stn[0].get_theta(img)
-    img_trans = sampling(theta, img)
+    img_trans = img
+    img_trans = sampling(theta, img_trans)
     x = net.stn[0](img)
     for i, layer in enumerate(net.backbone.children()):
         x = layer(x)
@@ -42,7 +43,6 @@ def visualize_stn(net, img):
     img_trans = img_trans.squeeze().detach().numpy().transpose([1, 2, 0]).astype(np.uint8)
     cv2.namedWindow("img")
     cv2.imshow("img", img_trans)
-    cv2.waitKey()
 
 def inference(net, img):
     net = net.eval()
@@ -64,11 +64,16 @@ def inference(net, img):
     return " ".join(res)
 
 if __name__ == "__main__":
-    lprnet = load_model("./weights/LPRNet_Alternate_Train_BEST.pth")
-    raw_image = cv2.imread("./test_img/ccpd_db_1.jpg")
+    lprnet = load_model("./weights/LPRNet_Train_BEST.pth")
+    raw_image = cv2.imread("./test_img/ccpd_fn_1.jpg")
     image = cv2.resize(raw_image, (96, 24))
+
+    cv2.namedWindow("og img")
+    cv2.imshow("og img", image)
+
     image = np.transpose(image, (2, 0, 1))
     result = inference(lprnet, image)
     visualize_stn(lprnet, image)
     print(result)
+    cv2.waitKey()
 

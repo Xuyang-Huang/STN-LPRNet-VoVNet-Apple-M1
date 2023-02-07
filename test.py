@@ -113,9 +113,9 @@ def test(img_dir, img_size, weights_fp):
     for item in all_type:
         print(f"Now {item}")
         datasets.img_paths = [fp for fp in img_fps if os.path.split(fp)[1].split("_")[1] == item]
-        datasets.img_paths = datasets.img_paths[:1000]
+        datasets.img_paths = datasets.img_paths
         Greedy_Decode_Eval(lprnet, datasets, args)
 
 
 if __name__ == "__main__":
-    test("/Users/xuyanghuang/Downloads/CCPD数据集/cropped_datasets/train", (96, 24), "./weights/LPRNet_Alternate_Train_BEST.pth")
+    test("/Users/xuyanghuang/Downloads/CCPD数据集/cropped_datasets/val", (96, 24), "./weights/LPRNet_Train_BEST.pth")
